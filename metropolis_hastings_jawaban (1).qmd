@@ -1,0 +1,324 @@
+---
+pagetitle: "Tugas 1"
+lang: id
+format:
+  html:
+    toc: true
+    embed-resources: true
+---
+
+```{=html}
+<style>
+.hero {
+  background: linear-gradient(135deg, #12525c 0%, #0f3a44 100%);
+  color: #ffffff;
+  padding: 2.2rem 2.5rem 2rem;
+  border-bottom: 6px solid #d99a00;
+  margin: -1rem -1rem 2.5rem;
+}
+.hero h1 {
+  margin: 0 0 .8rem;
+  padding-bottom: .8rem;
+  border-bottom: 2px solid rgba(255,255,255,.85);
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+.hero p {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #e6f0f2;
+}
+.info-card {
+  background: #ffffff;
+  border: 1px solid #dde6e8;
+  border-left: 7px solid #12525c;
+  border-radius: 16px;
+  padding: 1.4rem 1.8rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,.08);
+  margin-bottom: 2rem;
+}
+.info-card .label {
+  display: block;
+  font-size: .85rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #6b7c82;
+  margin-top: 1rem;
+}
+.info-card .label:first-child { margin-top: 0; }
+.info-card .nilai {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2d33;
+  margin-top: .2rem;
+}
+
+/* Kotak "Jawaban Anda" */
+.jawaban {
+  background: #ffffff;
+  border: 1px solid #dde6e8;
+  border-left: 7px solid #d99a00;
+  border-radius: 16px;
+  padding: 1.4rem 1.8rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,.08);
+  margin: 1.2rem 0 2.2rem;
+  line-height: 1.7;
+  color: #1f2d33;
+}
+.jawaban .judul {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #0f3a44;
+  margin-bottom: .9rem;
+}
+.jawaban p:last-child,
+.jawaban ol:last-child,
+.jawaban ul:last-child { margin-bottom: 0; }
+.jawaban ol, .jawaban ul { padding-left: 1.6rem; }
+.jawaban li { margin-bottom: .6rem; }
+</style>
+
+<div class="hero">
+  <h1>Tugas 1 — Komputasi Bayesian</h1>
+  <p>Metropolis Hasting</p>
+</div>
+
+<div class="info-card">
+  <span class="label">Mahasiswa</span>
+  <span class="nilai">Nama Anda</span>
+  <span class="label">NIM</span>
+  <span class="nilai">241061004</span>
+  <span class="label">Kode Tugas</span>
+  <span class="nilai">Tugas 1</span>
+</div>
+```
+
+```{r}
+#| include: false
+# Format angka dengan koma desimal (gaya Indonesia) untuk teks interpretasi
+fmt <- function(x, d = 4) format(round(x, d), decimal.mark = ",", nsmall = d)
+```
+
+# Pendahuluan
+::: {.unnumbered}
+
+Dokumen ini menerapkan algoritma **Metropolis-Hastings (random walk)** untuk mengambil sampel dari distribusi target $N(0,1)$. Setiap hasil dilengkapi interpretasi pada kotak **Jawaban Anda**.
+:::
+
+| Parameter | Nilai |
+|---|---|
+| Jumlah iterasi | 20.000 |
+| Nilai awal | 1 |
+| SD proposal | 0,5 |
+| Burn-in | 2.000 |
+
+# Langkah 1: Pengaturan Parameter
+
+```{r}
+set.seed(123)
+
+N           <- 20000   # jumlah iterasi
+theta0      <- 1       # nilai awal
+proposal_sd <- 0.5     # SD proposal
+burn_in     <- 2000    # burn-in
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+`set.seed(123)` mengunci bilangan acak agar hasil dapat diulang. SD proposal menentukan ukuran langkah acak (semakin besar, semakin jauh kandidat dari posisi sekarang), sedangkan burn-in adalah iterasi awal yang dibuang.
+:::
+
+# Langkah 2: Algoritma Metropolis-Hastings
+
+Pada setiap iterasi:
+
+1. Bangkitkan kandidat dari $N(\theta_{t-1},\, 0{,}5^2)$.
+2. Hitung $\log\alpha = \log p(\text{kandidat}) - \log p(\theta_{t-1})$. Proposal simetris, sehingga rasio proposal saling menghilangkan.
+3. Terima kandidat jika $\log(u) \le \log\alpha$ dengan $u \sim U(0,1)$; jika tidak, rantai tetap di nilai sebelumnya.
+
+```{r}
+theta    <- numeric(N)
+theta[1] <- theta0
+diterima <- logical(N)   # indikator penerimaan per iterasi
+
+for (t in 2:N) {
+  candidate <- rnorm(1, mean = theta[t - 1], sd = proposal_sd)
+
+  log_alpha <- dnorm(candidate, 0, 1, log = TRUE) -
+               dnorm(theta[t - 1], 0, 1, log = TRUE)
+
+  if (log(runif(1)) <= log_alpha) {
+    theta[t]    <- candidate
+    diterima[t] <- TRUE
+  } else {
+    theta[t] <- theta[t - 1]
+  }
+}
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Kandidat yang lebih mungkin menurut N(0,1) selalu diterima, sedangkan kandidat yang kurang mungkin hanya diterima dengan peluang tertentu. Aturan ini membuat rantai lebih sering berada di area berkepadatan tinggi sehingga sebarannya menyerupai N(0,1). Jika kandidat ditolak, nilai lama dicatat ulang sebagai sampel.
+:::
+
+# Langkah 3: Acceptance Rate
+
+```{r}
+acc_semua <- mean(diterima[-1])                  # seluruh iterasi
+acc_post  <- mean(diterima[(burn_in + 1):N])     # setelah burn-in
+
+data.frame(
+  Cakupan = c("Seluruh iterasi", "Setelah burn-in"),
+  `Acceptance rate` = round(c(acc_semua, acc_post), 4),
+  check.names = FALSE
+) |> knitr::kable()
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Acceptance rate **`r fmt(acc_semua)`** berarti sekitar `r fmt(100 * acc_semua, 1)`% kandidat diterima. Nilai ini tinggi karena SD proposal (0,5) lebih kecil daripada SD target (1), sehingga kandidat hampir selalu diterima dan rantai bergerak lambat (mixing kurang efisien). Untuk target satu dimensi, nilai yang lebih efisien sekitar 0,35 sampai 0,50.
+:::
+
+# Langkah 4: Membuang Burn-in
+
+```{r}
+theta_post <- theta[(burn_in + 1):N]
+length(theta_post)
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Sebanyak `r format(burn_in, big.mark = ".")` iterasi pertama dibuang karena masih dipengaruhi nilai awal, sehingga tersisa `r format(length(theta_post), big.mark = ".")` sampel untuk seluruh ringkasan berikutnya.
+:::
+
+# Langkah 5: Ringkasan Posterior
+
+```{r}
+ci <- quantile(theta_post, c(0.025, 0.975))
+
+ringkasan <- data.frame(
+  Ukuran = c("Mean", "Median", "SD", "Batas bawah 95%", "Batas atas 95%"),
+  Nilai  = round(c(mean(theta_post), median(theta_post), sd(theta_post),
+                   ci[1], ci[2]), 4)
+)
+knitr::kable(ringkasan)
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Sampel berpusat di sekitar nol: mean (`r fmt(mean(theta_post))`) dan median (`r fmt(median(theta_post))`) sangat dekat dengan 0 dan berdekatan, sehingga sebaran simetris. SD `r fmt(sd(theta_post))` mendekati 1, dan interval kredibel 95% [`r fmt(ci[1])`; `r fmt(ci[2])`] berarti 95% sampel berada pada rentang tersebut.
+:::
+
+# Langkah 6: Perbandingan dengan N(0,1) Teoretis
+
+```{r}
+perbandingan <- data.frame(
+  Ukuran    = c("Mean", "Median", "SD", "Batas bawah 95%", "Batas atas 95%"),
+  `Hasil MH` = round(c(mean(theta_post), median(theta_post), sd(theta_post),
+                       ci[1], ci[2]), 4),
+  `N(0,1)`   = round(c(0, 0, 1, qnorm(0.025), qnorm(0.975)), 4),
+  check.names = FALSE
+)
+perbandingan$Selisih <- round(perbandingan$`Hasil MH` - perbandingan$`N(0,1)`, 4)
+knitr::kable(perbandingan)
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Seluruh ukuran dekat dengan nilai teoretis N(0,1): mean dan median hampir 0, SD hanya berbeda sekitar `r fmt(abs(sd(theta_post) - 1), 3)` dari 1, dan interval kredibel mendekati [-1,96; 1,96] dengan lebar yang hampir sama (`r fmt(ci[2] - ci[1], 2)` dibanding `r fmt(2 * qnorm(0.975), 2)`). Selisih kecil yang tersisa, terutama di batas interval, berasal dari variasi Monte Carlo akibat autokorelasi sampel, bukan kesalahan algoritma.
+:::
+
+# Langkah 7: Grafik Diagnostik
+
+## Trace Plot
+
+Garis merah putus-putus menandai batas burn-in.
+
+```{r}
+#| fig-height: 4
+plot(theta, type = "l", main = "Trace Plot",
+     xlab = "Iterasi", ylab = expression(theta))
+abline(v = burn_in, col = "red", lty = 2)
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Berdasarkan trace plot hasil simulasi MCMC dengan metode Metropolis-Hastings sebanyak `r format(N, big.mark = ".")` iterasi, terlihat bahwa rantai Markov berfluktuasi secara acak di sekitar nilai nol dengan rentang kira-kira `r fmt(min(theta), 1)` hingga `r fmt(max(theta), 1)`. Pergerakan rantai tidak menunjukkan adanya tren naik atau turun secara sistematis maupun perubahan level yang signifikan sepanjang iterasi. Hal ini menunjukkan bahwa rantai telah mencapai kondisi yang relatif stabil dan mengindikasikan konvergensi menuju distribusi target $N(0,1)$.
+
+Selain itu, pola pergerakan rantai terlihat cukup rapat dan bergelombang karena penggunaan SD proposal sebesar 0,5. Kondisi ini sejalan dengan acceptance rate sebesar `r fmt(acc_semua)` atau `r fmt(100 * acc_semua, 2)`%, yang menunjukkan bahwa sebagian besar kandidat diterima. Dengan demikian, secara visual trace plot menunjukkan bahwa proses simulasi berjalan dengan baik dan burn-in sebanyak `r format(burn_in, big.mark = ".")` iterasi dinilai memadai untuk menghilangkan pengaruh nilai awal.
+:::
+
+## Histogram vs N(0,1)
+
+```{r}
+#| fig-height: 4
+hist(theta_post, breaks = 50, freq = FALSE, col = "lightblue",
+     main = "Histogram Sampel vs N(0,1)", xlab = expression(theta))
+curve(dnorm(x, 0, 1), add = TRUE, col = "red", lwd = 2)
+legend("topright", legend = "N(0,1)", col = "red", lwd = 2, bty = "n")
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Dari histogram hasil simulasi MCMC dengan metode Metropolis-Hastings, terlihat bahwa sebaran sampel setelah penghapusan burn-in sebanyak `r format(burn_in, big.mark = ".")` iterasi membentuk pola menyerupai kurva lonceng yang relatif simetris dengan puncak distribusi di sekitar nilai 0 dan kepadatan tertinggi sekitar 0,4. Sebagian besar sampel terkonsentrasi di sekitar nilai tengah, kemudian frekuensinya semakin menurun ke arah kedua ekor distribusi. Bentuk ini sesuai dengan distribusi normal standar $N(0,1)$ yang memiliki puncak kepadatan sekitar 0,4 pada titik nol.
+
+Selain itu, nilai mean sebesar `r fmt(mean(theta_post))`, median sebesar `r fmt(median(theta_post))`, dan standar deviasi sebesar `r fmt(sd(theta_post))` relatif mendekati nilai teoretis (mean 0 dan SD 1). Meskipun terdapat sedikit ketidakrataan pada batang histogram, kondisi tersebut masih wajar terjadi akibat variasi sampel dan autokorelasi dalam simulasi MCMC.
+:::
+
+## ACF
+
+```{r}
+#| fig-height: 4
+acf_hasil <- acf(theta_post, main = "Autocorrelation Function (ACF)")
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Autokorelasi sangat tinggi pada lag awal (sekitar `r fmt(acf_hasil$acf[2], 2)` pada lag 1), lalu menurun perlahan dan baru mendekati nol setelah puluhan lag. Artinya, sampel berurutan sangat mirip satu sama lain dan tidak independen. Penyebabnya adalah langkah proposal yang kecil: rantai bergerak sedikit demi sedikit sehingga butuh puluhan iterasi untuk "melupakan" posisi sebelumnya. Akibatnya, jumlah sampel efektif jauh lebih kecil daripada `r format(length(theta_post), big.mark = ".")` sampel nominal. Hal ini menjelaskan mengapa selisih kecil dari nilai teoretis, seperti mean `r fmt(mean(theta_post))` dan batas bawah interval `r fmt(ci[1])`, masih wajar.
+:::
+
+## Effective Sample Size
+
+```{r}
+ess <- NA_real_
+if (requireNamespace("coda", quietly = TRUE)) {
+  ess <- as.numeric(coda::effectiveSize(coda::as.mcmc(theta_post)))
+  ess
+} else {
+  cat("Paket 'coda' belum terpasang. Jalankan install.packages('coda').")
+}
+```
+
+::: {.jawaban}
+[Interpretasi]{.judul}
+
+Effective sample size (ESS) menunjukkan jumlah sampel independen yang setara dengan `r format(length(theta_post), big.mark = ".")` sampel berautokorelasi. Nilai ESS sebesar `r if (is.na(ess)) "(belum terhitung, paket coda belum terpasang)" else format(round(ess), big.mark = ".")` jauh lebih kecil daripada jumlah sampel nominal, sehingga estimasi, terutama di ekor distribusi, belum sepenuhnya stabil. Ini menjelaskan mengapa selisih kecil dari nilai teoretis masih wajar.
+:::
+
+# Langkah 8: Kesimpulan
+
+::: {.jawaban}
+[Kesimpulan]{.judul}
+
+1. Algoritma Metropolis-Hastings dengan proposal normal simetris $N(\theta^{(t)}, 0{,}5^2)$ memiliki peluang penerimaan yang hanya bergantung pada rasio kepadatan target, karena rasio proposal saling menghilang. Pada kandidat 1,5 dengan posisi sekarang 1 dan $u = 0{,}4$, kandidat diterima (rasio kepadatan $\approx 0{,}535 \ge 0{,}4$). Jika kandidat ditolak, rantai tetap di posisi sebelumnya dan nilai tersebut dicatat ulang sebagai sampel. Proses ini membentuk Markov Chain karena kandidat dibangkitkan hanya dari state saat ini dan keputusan terima atau tolak hanya bergantung pada state saat ini dan kandidat, tanpa bergantung pada riwayat iterasi sebelumnya.
+
+2. Simulasi `r format(N, big.mark = ".")` iterasi (nilai awal 1, SD proposal 0,5, burn-in `r format(burn_in, big.mark = ".")`) berhasil menghasilkan sampel yang menyerupai distribusi $N(0,1)$:
+
+    - Mean (`r fmt(mean(theta_post))`), median (`r fmt(median(theta_post))`), dan SD (`r fmt(sd(theta_post))`) mendekati nilai teoretis 0, 0, dan 1.
+    - Credible interval 95% [`r fmt(ci[1])`; `r fmt(ci[2])`] mendekati interval teoretis [-1,96; 1,96].
+    - Trace plot stabil di sekitar nol tanpa tren, dan histogram membentuk lonceng simetris yang sesuai dengan $N(0,1)$.
+    - Acceptance rate `r fmt(acc_semua)` tergolong tinggi dan ACF menurun lambat (sekitar `r fmt(acf_hasil$acf[2], 2)` pada lag 1), sehingga mixing kurang efisien dan sampel efektif hanya sekitar `r if (is.na(ess)) "(belum terhitung)" else format(round(ess), big.mark = ".")` dari `r format(length(theta_post), big.mark = ".")`. Penyebabnya adalah SD proposal yang kecil.
+:::
